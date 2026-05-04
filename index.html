@@ -31,15 +31,64 @@ body{margin:0;font-family:Arial;background:#141414;color:#fff}
 #modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#0b0b0b;overflow:auto;display:none;padding:20px}
 
 /* CLOSE BTN */
-.close-btn{position:fixed;top:15px;left:15px;background:#e50914;border:none;padding:10px 14px;color:#fff;cursor:pointer;border-radius:5px;z-index:9999}
+.close-btn{
+position:fixed;
+top:15px;
+right:15px;
+background:#e50914;
+border:none;
+padding:10px 14px;
+color:#fff;
+cursor:pointer;
+border-radius:5px;
+z-index:9999;
+}
 
 /* DETAILS */
-.details-container{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px}
-.poster{width:200px;border-radius:10px}
-.info{flex:1}
+.details-container{
+display:flex;
+gap:20px;
+flex-wrap:wrap;
+margin-bottom:20px;
+}
+
+/* 🔽 POSTER REDUCED */
+.poster{
+width:160px;
+border-radius:10px;
+}
+
+/* INFO */
+.info{
+flex:1;
+min-width:250px;
+}
+
+/* 📊 ANALYTICS GRID */
+.analytics{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+gap:10px;
+margin:15px 0;
+}
+
+.analytics div{
+background:#1f1f1f;
+padding:10px;
+border-radius:6px;
+font-size:14px;
+}
 
 /* BUTTON */
-.trailer-btn{background:#e50914;border:none;padding:12px 20px;color:#fff;font-weight:bold;cursor:pointer;border-radius:5px}
+.trailer-btn{
+background:#e50914;
+border:none;
+padding:12px 20px;
+color:#fff;
+font-weight:bold;
+cursor:pointer;
+border-radius:5px;
+}
 
 /* TABS */
 .tabs button{padding:10px;margin:5px;background:#222;border:none;color:#fff;cursor:pointer}
@@ -47,7 +96,7 @@ body{margin:0;font-family:Arial;background:#141414;color:#fff}
 .tab{display:none}
 .tab.active{display:block}
 
-/* SCROLL SECTIONS */
+/* SCROLL */
 .cast-container,.similar-container,.gallery-container{display:flex;overflow:auto;gap:10px}
 .cast-card img,.similar-item img,.gallery-container img{width:120px;border-radius:6px}
 </style>
@@ -171,7 +220,6 @@ fetchSafe(`${BASE}/movie/${id}/images?api_key=${TMDB_KEY}`)
 
 const trailer=videos.results?.find(v=>v.type==="Trailer" && v.site==="YouTube");
 
-/* RATINGS */
 let imdb="N/A",rt="N/A";
 if(omdb.Ratings){
 const i=omdb.Ratings.find(r=>r.Source==="Internet Movie Database");
@@ -205,15 +253,18 @@ modal.innerHTML=`
 
 <div class="details-container">
 <img class="poster" src="${IMG+tmdb.poster_path}">
+
 <div class="info">
 <p>${tmdb.overview}</p>
 
-<p>⭐ ${tmdb.vote_average}</p>
-<p>🎬 IMDb: ${imdb}</p>
-<p>🍅 ${rt}</p>
-
-<p>💰 $${tmdb.budget.toLocaleString()}</p>
-<p>💵 $${tmdb.revenue.toLocaleString()}</p>
+<div class="analytics">
+<div>⭐ ${tmdb.vote_average}</div>
+<div>🎬 ${imdb}</div>
+<div>🍅 ${rt}</div>
+<div>💰 $${tmdb.budget.toLocaleString()}</div>
+<div>💵 $${tmdb.revenue.toLocaleString()}</div>
+<div>📅 ${tmdb.release_date||"N/A"}</div>
+</div>
 
 ${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com/watch?v=${trailer.key}')">▶ Watch Trailer</button>`:""}
 </div>
