@@ -21,8 +21,7 @@ body{margin:0;font-family:Arial;background:#141414;color:#fff}
 
 /* MOVIES */
 .results{display:flex;overflow:auto;padding:15px;gap:12px}
-.movie{min-width:150px;cursor:pointer;transition:.3s}
-.movie:hover{transform:scale(1.05)}
+.movie{min-width:150px;cursor:pointer}
 .movie img{width:100%;border-radius:8px}
 
 /* BANNER */
@@ -31,14 +30,16 @@ body{margin:0;font-family:Arial;background:#141414;color:#fff}
 /* MODAL */
 #modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#0b0b0b;overflow:auto;display:none;padding:20px}
 
+/* CLOSE BTN */
+.close-btn{position:fixed;top:15px;left:15px;background:#e50914;border:none;padding:10px 14px;color:#fff;cursor:pointer;border-radius:5px;z-index:9999}
+
 /* DETAILS */
 .details-container{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px}
 .poster{width:200px;border-radius:10px}
-.info{flex:1;min-width:250px}
+.info{flex:1}
 
 /* BUTTON */
 .trailer-btn{background:#e50914;border:none;padding:12px 20px;color:#fff;font-weight:bold;cursor:pointer;border-radius:5px}
-.trailer-btn:hover{background:#c40812}
 
 /* TABS */
 .tabs button{padding:10px;margin:5px;background:#222;border:none;color:#fff;cursor:pointer}
@@ -82,7 +83,7 @@ const OMDB_KEY="72bd5552";
 const BASE="https://api.themoviedb.org/3";
 const IMG="https://image.tmdb.org/t/p/w500";
 
-/* CORS FIX */
+/* VPN FIX */
 const PROXY="https://api.allorigins.win/raw?url=";
 function fetchSafe(url){
 return fetch(url)
@@ -90,7 +91,7 @@ return fetch(url)
 .catch(()=>fetch(PROXY+encodeURIComponent(url)).then(r=>r.json()));
 }
 
-let trendingMovies=[],bannerIndex=0,debounceTimer=null;
+let trendingMovies=[],bannerIndex=0;
 
 const modal=document.getElementById("modal");
 const searchInput=document.getElementById("searchInput");
@@ -106,14 +107,12 @@ searchInput.value="";
 /* SEARCH */
 searchInput.addEventListener("input",function(){
 const q=this.value.trim();
-clearTimeout(debounceTimer);
 if(q.length<2){searchResults.style.display="none";return;}
 
-debounceTimer=setTimeout(()=>{
 fetchSafe(`${BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}`)
 .then(d=>{
 searchResults.innerHTML="";
-if(d.results && d.results.length){
+if(d.results){
 d.results.slice(0,8).forEach(m=>{
 const div=document.createElement("div");
 div.className="search-item";
@@ -122,15 +121,11 @@ div.onclick=()=>fetchDetails(m.id,m.title);
 searchResults.appendChild(div);
 });
 searchResults.style.display="block";
-}else{
-searchResults.innerHTML="<div class='search-item'>No results</div>";
-searchResults.style.display="block";
 }
 });
-},400);
 });
 
-/* CLICK OUTSIDE */
+/* CLOSE SEARCH */
 document.addEventListener("click",e=>{
 if(!e.target.closest(".search-box")) searchResults.style.display="none";
 });
@@ -142,7 +137,7 @@ c.innerHTML="";
 list.forEach(m=>{
 const d=document.createElement("div");
 d.className="movie";
-d.innerHTML=`<img src="${IMG+m.poster_path}"><p>${m.title}</p>`;
+d.innerHTML=`<img loading="lazy" src="${IMG+m.poster_path}"><p>${m.title}</p>`;
 d.onclick=()=>fetchDetails(m.id,m.title);
 c.appendChild(d);
 });
@@ -155,15 +150,14 @@ setInterval(()=>{
 const m=trendingMovies[bannerIndex];
 b.style.backgroundImage=`url(${IMG+m.backdrop_path})`;
 b.innerHTML=m.title;
-b.onclick=()=>fetchDetails(m.id,m.title);
 bannerIndex=(bannerIndex+1)%trendingMovies.length;
 },5000);
 }
 
-/* DETAILS FULL */
+/* DETAILS */
 function fetchDetails(id,title){
 modal.style.display="block";
-modal.innerHTML="Loading...";
+modal.innerHTML="<button class='close-btn' onclick='goHome()'>✕</button>Loading...";
 
 Promise.all([
 fetchSafe(`${BASE}/movie/${id}?api_key=${TMDB_KEY}`),
@@ -179,16 +173,12 @@ const trailer=videos.results?.find(v=>v.type==="Trailer" && v.site==="YouTube");
 
 /* RATINGS */
 let imdb="N/A",rt="N/A";
-if(omdb && omdb.Ratings){
+if(omdb.Ratings){
 const i=omdb.Ratings.find(r=>r.Source==="Internet Movie Database");
 const r=omdb.Ratings.find(r=>r.Source==="Rotten Tomatoes");
-imdb=i?i.Value:omdb.imdbRating||"N/A";
+imdb=i?i.Value:omdb.imdbRating;
 rt=r?r.Value:"N/A";
 }
-
-/* MONEY */
-const budget=tmdb.budget? "$"+tmdb.budget.toLocaleString():"N/A";
-const revenue=tmdb.revenue? "$"+tmdb.revenue.toLocaleString():"N/A";
 
 /* CAST */
 const castHTML=credits.cast?.slice(0,10).map(a=>`
@@ -209,6 +199,8 @@ const galleryHTML=images.backdrops?.slice(0,10).map(i=>`
 <img src="https://image.tmdb.org/t/p/w780${i.file_path}">`).join("");
 
 modal.innerHTML=`
+<button class="close-btn" onclick="goHome()">✕</button>
+
 <h1>${tmdb.title}</h1>
 
 <div class="details-container">
@@ -216,13 +208,12 @@ modal.innerHTML=`
 <div class="info">
 <p>${tmdb.overview}</p>
 
-<p>⭐ TMDB: ${tmdb.vote_average}</p>
+<p>⭐ ${tmdb.vote_average}</p>
 <p>🎬 IMDb: ${imdb}</p>
-<p>🍅 Rotten: ${rt}</p>
+<p>🍅 ${rt}</p>
 
-<p>📅 ${tmdb.release_date||"N/A"}</p>
-<p>💰 ${budget}</p>
-<p>💵 ${revenue}</p>
+<p>💰 $${tmdb.budget.toLocaleString()}</p>
+<p>💵 $${tmdb.revenue.toLocaleString()}</p>
 
 ${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com/watch?v=${trailer.key}')">▶ Watch Trailer</button>`:""}
 </div>
@@ -237,8 +228,6 @@ ${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com
 <div id="cast" class="tab active"><div class="cast-container">${castHTML}</div></div>
 <div id="similar" class="tab"><div class="similar-container">${similarHTML}</div></div>
 <div id="gallery" class="tab"><div class="gallery-container">${galleryHTML}</div></div>
-
-<button onclick="goHome()">Close</button>
 `;
 });
 }
