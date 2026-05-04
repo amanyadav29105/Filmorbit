@@ -49,34 +49,38 @@ z-index:9999;
 display:flex;
 gap:20px;
 flex-wrap:wrap;
-margin-bottom:20px;
+margin-top:10px;
 }
 
-/* 🔽 POSTER REDUCED */
 .poster{
-width:160px;
-border-radius:10px;
+width:150px;
+border-radius:12px;
+box-shadow:0 8px 20px rgba(0,0,0,0.6);
 }
 
-/* INFO */
 .info{
 flex:1;
 min-width:250px;
 }
 
-/* 📊 ANALYTICS GRID */
+/* OVERVIEW */
+.overview{
+line-height:1.7;
+color:#ccc;
+margin-bottom:15px;
+}
+
+/* ANALYTICS */
 .analytics{
 display:grid;
 grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
 gap:10px;
-margin:15px 0;
 }
 
 .analytics div{
 background:#1f1f1f;
 padding:10px;
 border-radius:6px;
-font-size:14px;
 }
 
 /* BUTTON */
@@ -88,17 +92,27 @@ color:#fff;
 font-weight:bold;
 cursor:pointer;
 border-radius:5px;
+margin-top:10px;
 }
 
 /* TABS */
+.tabs{margin-top:20px}
 .tabs button{padding:10px;margin:5px;background:#222;border:none;color:#fff;cursor:pointer}
 .tabs button.active{color:#e50914}
 .tab{display:none}
 .tab.active{display:block}
 
 /* SCROLL */
-.cast-container,.similar-container,.gallery-container{display:flex;overflow:auto;gap:10px}
-.cast-card img,.similar-item img,.gallery-container img{width:120px;border-radius:6px}
+.cast-container,.similar-container,.gallery-container{
+display:flex;
+overflow:auto;
+gap:10px;
+}
+
+.cast-card img,.similar-item img,.gallery-container img{
+width:120px;
+border-radius:6px;
+}
 </style>
 </head>
 
@@ -132,12 +146,20 @@ const OMDB_KEY="72bd5552";
 const BASE="https://api.themoviedb.org/3";
 const IMG="https://image.tmdb.org/t/p/w500";
 
-/* VPN FIX */
-const PROXY="https://api.allorigins.win/raw?url=";
-function fetchSafe(url){
-return fetch(url)
-.then(r=>{if(!r.ok)throw "err";return r.json()})
-.catch(()=>fetch(PROXY+encodeURIComponent(url)).then(r=>r.json()));
+/* NETWORK SAFE FETCH */
+async function fetchSafe(url){
+const proxies=[
+url,
+"https://corsproxy.io/?"+encodeURIComponent(url),
+"https://api.codetabs.com/v1/proxy?quest="+encodeURIComponent(url)
+];
+for(let p of proxies){
+try{
+const res=await fetch(p);
+if(res.ok) return await res.json();
+}catch(e){}
+}
+throw "fail";
 }
 
 let trendingMovies=[],bannerIndex=0;
@@ -146,7 +168,6 @@ const modal=document.getElementById("modal");
 const searchInput=document.getElementById("searchInput");
 const searchResults=document.getElementById("searchResults");
 
-/* HOME */
 function goHome(){
 modal.style.display="none";
 searchResults.style.display="none";
@@ -154,14 +175,12 @@ searchInput.value="";
 }
 
 /* SEARCH */
-searchInput.addEventListener("input",function(){
+searchInput.addEventListener("input",async function(){
 const q=this.value.trim();
 if(q.length<2){searchResults.style.display="none";return;}
-
-fetchSafe(`${BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}`)
-.then(d=>{
+try{
+const d=await fetchSafe(`${BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}`);
 searchResults.innerHTML="";
-if(d.results){
 d.results.slice(0,8).forEach(m=>{
 const div=document.createElement("div");
 div.className="search-item";
@@ -170,13 +189,10 @@ div.onclick=()=>fetchDetails(m.id,m.title);
 searchResults.appendChild(div);
 });
 searchResults.style.display="block";
+}catch{
+searchResults.innerHTML="<div class='search-item'>Network error</div>";
+searchResults.style.display="block";
 }
-});
-});
-
-/* CLOSE SEARCH */
-document.addEventListener("click",e=>{
-if(!e.target.closest(".search-box")) searchResults.style.display="none";
 });
 
 /* DISPLAY */
@@ -186,7 +202,7 @@ c.innerHTML="";
 list.forEach(m=>{
 const d=document.createElement("div");
 d.className="movie";
-d.innerHTML=`<img loading="lazy" src="${IMG+m.poster_path}"><p>${m.title}</p>`;
+d.innerHTML=`<img src="${IMG+m.poster_path}"><p>${m.title}</p>`;
 d.onclick=()=>fetchDetails(m.id,m.title);
 c.appendChild(d);
 });
@@ -194,55 +210,49 @@ c.appendChild(d);
 
 /* BANNER */
 function startBanner(){
-const b=document.getElementById("banner");
 setInterval(()=>{
 const m=trendingMovies[bannerIndex];
-b.style.backgroundImage=`url(${IMG+m.backdrop_path})`;
-b.innerHTML=m.title;
+banner.style.backgroundImage=`url(${IMG+m.backdrop_path})`;
+banner.innerHTML=m.title;
 bannerIndex=(bannerIndex+1)%trendingMovies.length;
 },5000);
 }
 
 /* DETAILS */
-function fetchDetails(id,title){
+async function fetchDetails(id,title){
 modal.style.display="block";
 modal.innerHTML="<button class='close-btn' onclick='goHome()'>✕</button>Loading...";
 
-Promise.all([
+try{
+const [tmdb,omdb,videos,similar,credits,images]=await Promise.all([
 fetchSafe(`${BASE}/movie/${id}?api_key=${TMDB_KEY}`),
 fetchSafe(`https://www.omdbapi.com/?apikey=${OMDB_KEY}&t=${encodeURIComponent(title)}`),
 fetchSafe(`${BASE}/movie/${id}/videos?api_key=${TMDB_KEY}`),
 fetchSafe(`${BASE}/movie/${id}/similar?api_key=${TMDB_KEY}`),
 fetchSafe(`${BASE}/movie/${id}/credits?api_key=${TMDB_KEY}`),
 fetchSafe(`${BASE}/movie/${id}/images?api_key=${TMDB_KEY}`)
-])
-.then(([tmdb,omdb,videos,similar,credits,images])=>{
+]);
 
-const trailer=videos.results?.find(v=>v.type==="Trailer" && v.site==="YouTube");
+const trailer=videos.results?.find(v=>v.type==="Trailer");
 
 let imdb="N/A",rt="N/A";
 if(omdb.Ratings){
-const i=omdb.Ratings.find(r=>r.Source==="Internet Movie Database");
-const r=omdb.Ratings.find(r=>r.Source==="Rotten Tomatoes");
-imdb=i?i.Value:omdb.imdbRating;
-rt=r?r.Value:"N/A";
+imdb=omdb.Ratings.find(r=>r.Source==="Internet Movie Database")?.Value||"N/A";
+rt=omdb.Ratings.find(r=>r.Source==="Rotten Tomatoes")?.Value||"N/A";
 }
 
-/* CAST */
 const castHTML=credits.cast?.slice(0,10).map(a=>`
 <div class="cast-card">
 <img src="${a.profile_path?IMG+a.profile_path:''}">
 <p>${a.name}</p>
 </div>`).join("");
 
-/* SIMILAR */
 const similarHTML=similar.results?.slice(0,10).map(m=>`
 <div class="similar-item" onclick="fetchDetails(${m.id},'${m.title.replace(/'/g,"")}')">
 <img src="${m.poster_path?IMG+m.poster_path:''}">
 <p>${m.title}</p>
 </div>`).join("");
 
-/* GALLERY */
 const galleryHTML=images.backdrops?.slice(0,10).map(i=>`
 <img src="https://image.tmdb.org/t/p/w780${i.file_path}">`).join("");
 
@@ -255,7 +265,7 @@ modal.innerHTML=`
 <img class="poster" src="${IMG+tmdb.poster_path}">
 
 <div class="info">
-<p>${tmdb.overview}</p>
+<p class="overview">${tmdb.overview}</p>
 
 <div class="analytics">
 <div>⭐ ${tmdb.vote_average}</div>
@@ -263,7 +273,7 @@ modal.innerHTML=`
 <div>🍅 ${rt}</div>
 <div>💰 $${tmdb.budget.toLocaleString()}</div>
 <div>💵 $${tmdb.revenue.toLocaleString()}</div>
-<div>📅 ${tmdb.release_date||"N/A"}</div>
+<div>📅 ${tmdb.release_date || "N/A"}</div>
 </div>
 
 ${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com/watch?v=${trailer.key}')">▶ Watch Trailer</button>`:""}
@@ -280,7 +290,9 @@ ${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com
 <div id="similar" class="tab"><div class="similar-container">${similarHTML}</div></div>
 <div id="gallery" class="tab"><div class="gallery-container">${galleryHTML}</div></div>
 `;
-});
+}catch{
+modal.innerHTML="<button class='close-btn' onclick='goHome()'>✕</button><p>Network blocked</p>";
+}
 }
 
 /* TABS */
@@ -292,17 +304,14 @@ btn.classList.add("active");
 }
 
 /* LOAD */
-function load(){
-fetchSafe(`${BASE}/trending/movie/week?api_key=${TMDB_KEY}`)
-.then(d=>{
+async function load(){
+const d=await fetchSafe(`${BASE}/trending/movie/week?api_key=${TMDB_KEY}`);
 trendingMovies=d.results;
 displayMovies(d.results,"trending");
 startBanner();
-});
-fetchSafe(`${BASE}/movie/popular?api_key=${TMDB_KEY}`)
-.then(d=>displayMovies(d.results,"popular"));
-fetchSafe(`${BASE}/movie/top_rated?api_key=${TMDB_KEY}`)
-.then(d=>displayMovies(d.results,"toprated"));
+
+displayMovies((await fetchSafe(`${BASE}/movie/popular?api_key=${TMDB_KEY}`)).results,"popular");
+displayMovies((await fetchSafe(`${BASE}/movie/top_rated?api_key=${TMDB_KEY}`)).results,"toprated");
 }
 
 load();
