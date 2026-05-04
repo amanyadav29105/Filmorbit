@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FilmOrbit</title>
+
+<style>
+body{margin:0;font-family:Arial;background:#141414;color:#fff}
+
+/* NAVBAR */
+.navbar{display:flex;gap:10px;padding:12px;background:#000;align-items:center}
+.logo{color:#e50914;font-weight:bold;font-size:22px}
+
+/* SEARCH */
+.search-box{position:relative}
+.search-box input{padding:10px;border:none;border-radius:4px;width:200px}
+.search-results{display:none;position:absolute;background:#222;width:100%;top:100%;z-index:1000;border-radius:4px}
+.search-item{padding:10px;cursor:pointer}
+.search-item:hover{background:#444}
+
+/* MOVIES */
+.results{display:flex;overflow:auto;padding:15px;gap:12px}
+.movie{min-width:150px;cursor:pointer;transition:.3s}
+.movie:hover{transform:scale(1.05)}
+.movie img{width:100%;border-radius:8px}
+
+/* BANNER */
+.banner{height:260px;background-size:cover;display:flex;align-items:end;padding:20px;font-size:24px;font-weight:bold}
+
+/* MODAL */
+#modal{position:fixed;top:0;left:0;width:100%;height:100%;background:#0b0b0b;overflow:auto;display:none;padding:20px}
+
+/* DETAILS */
+.details-container{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px}
+.poster{width:200px;border-radius:10px}
+.info{flex:1;min-width:250px}
+
+/* BUTTON */
+.trailer-btn{background:#e50914;border:none;padding:12px 20px;color:#fff;font-weight:bold;cursor:pointer;border-radius:5px}
+.trailer-btn:hover{background:#c40812}
+
+/* TABS */
+.tabs button{padding:10px;margin:5px;background:#222;border:none;color:#fff;cursor:pointer}
+.tabs button.active{color:#e50914}
+.tab{display:none}
+.tab.active{display:block}
+
+/* SCROLL SECTIONS */
+.cast-container,.similar-container,.gallery-container{display:flex;overflow:auto;gap:10px}
+.cast-card img,.similar-item img,.gallery-container img{width:120px;border-radius:6px}
+</style>
+</head>
+
+<body>
+
+<div class="navbar">
+<button onclick="goHome()">🏠</button>
+<div class="logo">FilmOrbit</div>
+<div class="search-box">
+<input id="searchInput" placeholder="Search movies...">
+<div id="searchResults" class="search-results"></div>
+</div>
+</div>
+
+<div id="banner" class="banner"></div>
+
+<h2>Trending</h2>
+<div id="trending" class="results"></div>
+
+<h2>Popular</h2>
+<div id="popular" class="results"></div>
+
+<h2>Top Rated</h2>
+<div id="toprated" class="results"></div>
+
+<div id="modal"></div>
+
+<script>
+const TMDB_KEY="7aeb28da55dc62f473190b7f88a2acc8";
+const OMDB_KEY="72bd5552";
+const BASE="https://api.themoviedb.org/3";
+const IMG="https://image.tmdb.org/t/p/w500";
+
+/* CORS FIX */
+const PROXY="https://api.allorigins.win/raw?url=";
+function fetchSafe(url){
+return fetch(url)
+.then(r=>{if(!r.ok)throw "err";return r.json()})
+.catch(()=>fetch(PROXY+encodeURIComponent(url)).then(r=>r.json()));
+}
+
+let trendingMovies=[],bannerIndex=0,debounceTimer=null;
+
+const modal=document.getElementById("modal");
+const searchInput=document.getElementById("searchInput");
+const searchResults=document.getElementById("searchResults");
+
+/* HOME */
+function goHome(){
+modal.style.display="none";
+searchResults.style.display="none";
+searchInput.value="";
+}
+
+/* SEARCH */
+searchInput.addEventListener("input",function(){
+const q=this.value.trim();
+clearTimeout(debounceTimer);
+if(q.length<2){searchResults.style.display="none";return;}
+
+debounceTimer=setTimeout(()=>{
+fetchSafe(`${BASE}/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}`)
+.then(d=>{
+searchResults.innerHTML="";
+if(d.results && d.results.length){
+d.results.slice(0,8).forEach(m=>{
+const div=document.createElement("div");
+div.className="search-item";
+div.textContent=m.title;
+div.onclick=()=>fetchDetails(m.id,m.title);
+searchResults.appendChild(div);
+});
+searchResults.style.display="block";
+}else{
+searchResults.innerHTML="<div class='search-item'>No results</div>";
+searchResults.style.display="block";
+}
+});
+},400);
+});
+
+/* CLICK OUTSIDE */
+document.addEventListener("click",e=>{
+if(!e.target.closest(".search-box")) searchResults.style.display="none";
+});
+
+/* DISPLAY */
+function displayMovies(list,id){
+const c=document.getElementById(id);
+c.innerHTML="";
+list.forEach(m=>{
+const d=document.createElement("div");
+d.className="movie";
+d.innerHTML=`<img src="${IMG+m.poster_path}"><p>${m.title}</p>`;
+d.onclick=()=>fetchDetails(m.id,m.title);
+c.appendChild(d);
+});
+}
+
+/* BANNER */
+function startBanner(){
+const b=document.getElementById("banner");
+setInterval(()=>{
+const m=trendingMovies[bannerIndex];
+b.style.backgroundImage=`url(${IMG+m.backdrop_path})`;
+b.innerHTML=m.title;
+b.onclick=()=>fetchDetails(m.id,m.title);
+bannerIndex=(bannerIndex+1)%trendingMovies.length;
+},5000);
+}
+
+/* DETAILS FULL */
+function fetchDetails(id,title){
+modal.style.display="block";
+modal.innerHTML="Loading...";
+
+Promise.all([
+fetchSafe(`${BASE}/movie/${id}?api_key=${TMDB_KEY}`),
+fetchSafe(`https://www.omdbapi.com/?apikey=${OMDB_KEY}&t=${encodeURIComponent(title)}`),
+fetchSafe(`${BASE}/movie/${id}/videos?api_key=${TMDB_KEY}`),
+fetchSafe(`${BASE}/movie/${id}/similar?api_key=${TMDB_KEY}`),
+fetchSafe(`${BASE}/movie/${id}/credits?api_key=${TMDB_KEY}`),
+fetchSafe(`${BASE}/movie/${id}/images?api_key=${TMDB_KEY}`)
+])
+.then(([tmdb,omdb,videos,similar,credits,images])=>{
+
+const trailer=videos.results?.find(v=>v.type==="Trailer" && v.site==="YouTube");
+
+/* RATINGS */
+let imdb="N/A",rt="N/A";
+if(omdb && omdb.Ratings){
+const i=omdb.Ratings.find(r=>r.Source==="Internet Movie Database");
+const r=omdb.Ratings.find(r=>r.Source==="Rotten Tomatoes");
+imdb=i?i.Value:omdb.imdbRating||"N/A";
+rt=r?r.Value:"N/A";
+}
+
+/* MONEY */
+const budget=tmdb.budget? "$"+tmdb.budget.toLocaleString():"N/A";
+const revenue=tmdb.revenue? "$"+tmdb.revenue.toLocaleString():"N/A";
+
+/* CAST */
+const castHTML=credits.cast?.slice(0,10).map(a=>`
+<div class="cast-card">
+<img src="${a.profile_path?IMG+a.profile_path:''}">
+<p>${a.name}</p>
+</div>`).join("");
+
+/* SIMILAR */
+const similarHTML=similar.results?.slice(0,10).map(m=>`
+<div class="similar-item" onclick="fetchDetails(${m.id},'${m.title.replace(/'/g,"")}')">
+<img src="${m.poster_path?IMG+m.poster_path:''}">
+<p>${m.title}</p>
+</div>`).join("");
+
+/* GALLERY */
+const galleryHTML=images.backdrops?.slice(0,10).map(i=>`
+<img src="https://image.tmdb.org/t/p/w780${i.file_path}">`).join("");
+
+modal.innerHTML=`
+<h1>${tmdb.title}</h1>
+
+<div class="details-container">
+<img class="poster" src="${IMG+tmdb.poster_path}">
+<div class="info">
+<p>${tmdb.overview}</p>
+
+<p>⭐ TMDB: ${tmdb.vote_average}</p>
+<p>🎬 IMDb: ${imdb}</p>
+<p>🍅 Rotten: ${rt}</p>
+
+<p>📅 ${tmdb.release_date||"N/A"}</p>
+<p>💰 ${budget}</p>
+<p>💵 ${revenue}</p>
+
+${trailer?`<button class="trailer-btn" onclick="window.open('https://youtube.com/watch?v=${trailer.key}')">▶ Watch Trailer</button>`:""}
+</div>
+</div>
+
+<div class="tabs">
+<button class="tab-btn active" onclick="switchTab('cast',this)">Cast</button>
+<button class="tab-btn" onclick="switchTab('similar',this)">Similar</button>
+<button class="tab-btn" onclick="switchTab('gallery',this)">Gallery</button>
+</div>
+
+<div id="cast" class="tab active"><div class="cast-container">${castHTML}</div></div>
+<div id="similar" class="tab"><div class="similar-container">${similarHTML}</div></div>
+<div id="gallery" class="tab"><div class="gallery-container">${galleryHTML}</div></div>
+
+<button onclick="goHome()">Close</button>
+`;
+});
+}
+
+/* TABS */
+function switchTab(name,btn){
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+document.getElementById(name).classList.add("active");
+btn.classList.add("active");
+}
+
+/* LOAD */
+function load(){
+fetchSafe(`${BASE}/trending/movie/week?api_key=${TMDB_KEY}`)
+.then(d=>{
+trendingMovies=d.results;
+displayMovies(d.results,"trending");
+startBanner();
+});
+fetchSafe(`${BASE}/movie/popular?api_key=${TMDB_KEY}`)
+.then(d=>displayMovies(d.results,"popular"));
+fetchSafe(`${BASE}/movie/top_rated?api_key=${TMDB_KEY}`)
+.then(d=>displayMovies(d.results,"toprated"));
+}
+
+load();
+</script>
+
+</body>
+</html>
